@@ -77,13 +77,14 @@ import {
     IFileUpload
 } from 'flowise-components'
 import { createRateLimiter, getRateLimiter, initializeRateLimiter } from './utils/rateLimit'
-import { addAPIKey, compareKeys, deleteAPIKey, getApiKey, getAPIKeys, updateAPIKey } from './utils/apiKey'
+import { compareKeys, getApiKey, getAPIKeys } from './utils/apiKey'
 import { sanitizeMiddleware, getCorsOptions, getAllowedIframeOrigins } from './utils/XSS'
 import axios from 'axios'
 import { Client } from 'langchainhub'
 import { parsePrompt } from './utils/hub'
 import { Telemetry } from './utils/telemetry'
 import { Variable } from './database/entities/Variable'
+import flowiseApiV1Router from './routes'
 
 export class App {
     app: express.Application
@@ -1524,10 +1525,6 @@ export class App {
         // ----------------------------------------
         // Variables
         // ----------------------------------------
-        this.app.get('/api/v1/variables', async (req: Request, res: Response) => {
-            const variables = await getDataSource().getRepository(Variable).find()
-            return res.json(variables)
-        })
 
         // Create new variable
         this.app.post('/api/v1/variables', async (req: Request, res: Response) => {
@@ -1566,54 +1563,6 @@ export class App {
         // API Keys
         // ----------------------------------------
 
-        const addChatflowsCount = async (keys: any, res: Response) => {
-            if (keys) {
-                const updatedKeys: any[] = []
-                //iterate through keys and get chatflows
-                for (const key of keys) {
-                    const chatflows = await this.AppDataSource.getRepository(ChatFlow)
-                        .createQueryBuilder('cf')
-                        .where('cf.apikeyid = :apikeyid', { apikeyid: key.id })
-                        .getMany()
-                    const linkedChatFlows: any[] = []
-                    chatflows.map((cf) => {
-                        linkedChatFlows.push({
-                            flowName: cf.name,
-                            category: cf.category,
-                            updatedDate: cf.updatedDate
-                        })
-                    })
-                    key.chatFlows = linkedChatFlows
-                    updatedKeys.push(key)
-                }
-                return res.json(updatedKeys)
-            }
-            return res.json(keys)
-        }
-        // Get api keys
-        this.app.get('/api/v1/apikey', async (req: Request, res: Response) => {
-            const keys = await getAPIKeys()
-            return addChatflowsCount(keys, res)
-        })
-
-        // Add new api key
-        this.app.post('/api/v1/apikey', async (req: Request, res: Response) => {
-            const keys = await addAPIKey(req.body.keyName)
-            return addChatflowsCount(keys, res)
-        })
-
-        // Update api key
-        this.app.put('/api/v1/apikey/:id', async (req: Request, res: Response) => {
-            const keys = await updateAPIKey(req.params.id, req.body.keyName)
-            return addChatflowsCount(keys, res)
-        })
-
-        // Delete new api key
-        this.app.delete('/api/v1/apikey/:id', async (req: Request, res: Response) => {
-            const keys = await deleteAPIKey(req.params.id)
-            return addChatflowsCount(keys, res)
-        })
-
         // Verify api key
         this.app.get('/api/v1/verify/apikey/:apiKey', async (req: Request, res: Response) => {
             try {
@@ -1624,6 +1573,8 @@ export class App {
                 return res.status(500).send(err?.message)
             }
         })
+
+        this.app.use('/api/v1', flowiseApiV1Router)
 
         // ----------------------------------------
         // Serve UI static
