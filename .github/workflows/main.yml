@@ -40,3 +40,14 @@ jobs:
             - run: pnpm lint
 
             - run: pnpm build
+            - name: Install dependencies
+              uses: cypress-io/github-action@v6
+              with:
+                working-directory: ./
+                runTests: false
+
+            - name: Cypress test
+              uses: cypress-io/github-action@v6
+              with:
+                install: false
+                working-directory: packages/server
